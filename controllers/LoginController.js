@@ -1,5 +1,3 @@
-const { User } = require('../models');
-
 const jwt = require('jsonwebtoken');
 
 module.exports = {
@@ -15,4 +13,10 @@ module.exports = {
 		const accessToken = jwt.sign({ username: user.username}, process.env.ACCESS_TOKEN_SECRET);
 		return res.status(200).json({ user: { username: user.username }, accessToken: accessToken });
 	}
+
+	/*
+	TODO
+	criação do usuário
+	restaurar senha
+	*/
 };

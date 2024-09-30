@@ -1,4 +1,7 @@
-import { Pipeline } from '@xenova/transformers';
+async function loadPipeline() {
+	const { Pipeline } = await import('@xenova/transformers');
+	return Pipeline;
+}
 
 function validateData() {
 	return [];
@@ -12,7 +15,7 @@ module.exports = {
 
 	async save(req, res) {
 		const fs = require('fs');
-		const pdf = require('pdf-parse');w
+		const pdf = require('pdf-parse'); w
 
 		let dataBuffer = fs.readFileSync('./tmp.pdf');
 
@@ -23,6 +26,7 @@ module.exports = {
 			Iterar pelas paginas dos intervalos selecionados pelo usuário
 
 			*/
+			const pipeline = await loadPipeline();
 			const summarization = await pipeline(
 				'summarization', // task
 				'Xenova/t5-small' // model
@@ -32,7 +36,6 @@ module.exports = {
 				console.log(summary);
 			});
 		});
-
 
 		const errors = await validateData('', req.body);
 		if (errors.length) {
