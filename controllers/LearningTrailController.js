@@ -1,10 +1,61 @@
-async function loadPipeline() {
-	const { Pipeline } = await import('@xenova/transformers');
-	return Pipeline;
+const fs = require('fs');
+
+async function getSummarizationPipeline() {
+	const { pipeline } = await import('@xenova/transformers');
+	return await pipeline('summarization', 'Xenova/bart-large-cnn');
 }
 
-function validateData() {
-	return [];
+function validateData(req) {
+	let errors = [];
+
+	if (!req.file) {
+		errors.push({ error: 'Informe o arquivo a ser resumido', element: 'file' });
+	}
+
+	if (!req.contentStart) {
+		errors.push({ error: 'Informe a página que marca o início do conteúdo', element: 'contentStart' });
+	}
+
+	if (!req.contentEnd) {
+		errors.push({ error: 'Informe a página que marca o fim do conteúdo', element: 'contentEnd' });
+	}
+
+	if (errors.length) {
+		return errors;
+	}
+
+	const filePath = path.join(__dirname, req.file.path);
+	fs.stat(filePath, (err, stats) => {
+		if (err || !stats.isFile()) {
+			errors.push({ error: 'The provided file is not valid', element: 'file' });
+		}
+	});
+
+	return errors;
+}
+
+function splitTextIntoChunks(text) {
+	const phrasesPerChunk = 50;
+	const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+
+	const chunks = [];
+	for (let i = 0; i < sentences.length; i += phrasesPerChunk) {
+		chunks.push(sentences.slice(i, i + phrasesPerChunk).join(' ').trim());
+	}
+
+	return chunks;
+}
+
+async function summarizeChunks(chunks) {
+	const pipe = await getSummarizationPipeline();
+	const summarizedChunks = [];
+
+	for (let chunk of chunks) {
+		let summarized = await pipe(chunk);
+		summarizedChunks.push(summarized);
+	}
+
+	return summarizedChunks;
 }
 
 module.exports = {
@@ -14,28 +65,24 @@ module.exports = {
 	},
 
 	async save(req, res) {
-		const fs = require('fs');
-		const pdf = require('pdf-parse'); w
+		const pdfParse = require('pdf-parse');
+
+		let validationErrors = validateData(req.body);
+
+		// if (validationErrors.length) {
+		// 	return res.status(400).json({ errors: validationErrors });
+		// }
+		const summarization = await getSummarizationPipeline();
 
 		let dataBuffer = fs.readFileSync('./tmp.pdf');
+		let pdf = await pdfParse(dataBuffer);
 
-		pdf(dataBuffer).then(async data => {
+		let chunks = splitTextIntoChunks(pdf.text, 500);
+		let summarizedChunks = summarizeChunks(chunks);
 
-			/*
-			Obter arquivo da request
-			Iterar pelas paginas dos intervalos selecionados pelo usuário
-
-			*/
-			const pipeline = await loadPipeline();
-			const summarization = await pipeline(
-				'summarization', // task
-				'Xenova/t5-small' // model
-			);
-
-			summarization(data.text).then((summary) => {
-				console.log(summary);
-			});
-		});
+		for (let summarizedChunk of summarizedChunks) {
+			//LearningTrail.create(summarizedChunk);
+		}
 
 		const errors = await validateData('', req.body);
 		if (errors.length) {
@@ -51,19 +98,15 @@ module.exports = {
 		return res.json(trail);
 	},
 
-	async update(req, res) {
-		const errors = await validateData(req.params.id, req.body);
-		if (errors.length) {
-			return res.status(400).json({ errors: errors });
-		}
-
-		await LearningTrail.findByIdAndUpdate(req.params.id, req.body);
-		return res.status(204).send();
-	},
-
 	async delete(req, res) {
 		await LearningTrail.findByIdAndDelete(req.params.id);
 		return res.status(204).send();
 	},
 
 };
+
+/*
+usuario informa primeira e ultima pagina com conteudo (desconsiderando capa, sumario, etc)
+script separa o conteudo em seções com 3k? palavras
+resume cada conteudo separadamente
+*/
