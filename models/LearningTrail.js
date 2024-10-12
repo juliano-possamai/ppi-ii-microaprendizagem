@@ -2,10 +2,6 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const TrailSection = new Schema({
-	title: {
-		type: String,
-		required: true
-	},
 	read: {
 		type: Boolean,
 		default: false
@@ -17,7 +13,7 @@ const TrailSection = new Schema({
 });
 
 const LearningTrailSchema = new Schema({
-	name: {
+	title: {
 		type: String,
 		required: true,
 		trim: true

@@ -16,4 +16,21 @@ requireDir('./models');
 app.use('/api', require('./routes.js'));
 
 const apiPort = 3000;
-app.listen(apiPort, () => console.log(`Listening on port ${apiPort}`));
+const apiServer = app.listen(apiPort, () => console.log(`Listening on port ${apiPort}`));
+
+
+//gracefully shutdown
+process.on('SIGTERM', () => {
+	apiServer.close();
+	mongoose.connection.close(false);
+
+	//TODO clear files on storage/tmp
+
+	// const fs = require('fs');
+	// const path = require('path');
+
+	// const directory = path.join(__dirname, 'storage/tmp');
+	// fs.rm(directory, { recursive: true, force: true });
+
+	process.exit(0);
+});
