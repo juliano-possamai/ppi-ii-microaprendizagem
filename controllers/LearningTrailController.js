@@ -1,71 +1,71 @@
 const fs = require('fs');
 const LearningTrail = require('../models/LearningTrail');
 
-async function getSummarizationPipeline() {
-	const { pipeline } = await import('@xenova/transformers');
-	return await pipeline('summarization', 'Xenova/distilbart-cnn-6-6');
-}
-
-function validateData(req) {
-	let errors = [];
-
-	if (!req.body.title) {
-		errors.push({ error: 'Informe o título da trilha', element: 'title' });
-	} else if (req.body.title.length < 3) {
-		errors.push({ error: 'O título deve ter no mínimo 3 caracteres', element: 'title' });
+class LearningTrailController {
+	async getSummarizationPipeline() {
+		const { pipeline } = await import('@xenova/transformers');
+		return await pipeline('summarization', 'Xenova/distilbart-cnn-6-6');
 	}
 
-	if (!req.file) {
-		errors.push({ error: 'Informe o arquivo a ser resumido', element: 'file' });
-	} else if (req.file.mimetype != 'application/pdf') {
-		errors.push({ error: 'O arquivo informado deve ser no formato PDF', element: 'file' });
+	_validateData(req) {
+		let errors = [];
+
+		if (!req.body.title) {
+			errors.push({ error: 'Informe o título da trilha', element: 'title' });
+		} else if (req.body.title.length < 3) {
+			errors.push({ error: 'O título deve ter no mínimo 3 caracteres', element: 'title' });
+		}
+
+		if (!req.file) {
+			errors.push({ error: 'Informe o arquivo a ser resumido', element: 'file' });
+		} else if (req.file.mimetype != 'application/pdf') {
+			errors.push({ error: 'O arquivo informado deve ser no formato PDF', element: 'file' });
+		}
+
+		// if (!req.body.contentStart) {
+		// 	errors.push({ error: 'Informe a página que marca o início do conteúdo', element: 'contentStart' });
+		// }
+
+		// if (!req.body.contentEnd) {
+		// 	errors.push({ error: 'Informe a página que marca o fim do conteúdo', element: 'contentEnd' });
+		// }
+
+		return errors;
 	}
 
-	// if (!req.body.contentStart) {
-	// 	errors.push({ error: 'Informe a página que marca o início do conteúdo', element: 'contentStart' });
-	// }
+	_splitTextIntoChunks(text) {
+		const phrasesPerChunk = 50;
+		const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
 
-	// if (!req.body.contentEnd) {
-	// 	errors.push({ error: 'Informe a página que marca o fim do conteúdo', element: 'contentEnd' });
-	// }
+		const chunks = [];
+		for (let i = 0; i < sentences.length; i += phrasesPerChunk) {
+			chunks.push(sentences.slice(i, i + phrasesPerChunk).join(' ').trim());
+		}
 
-	return errors;
-}
-
-function splitTextIntoChunks(text) {
-	const phrasesPerChunk = 50;
-	const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
-
-	const chunks = [];
-	for (let i = 0; i < sentences.length; i += phrasesPerChunk) {
-		chunks.push(sentences.slice(i, i + phrasesPerChunk).join(' ').trim());
+		return chunks;
 	}
 
-	return chunks;
-}
+	async _summarizeChunks(chunks) {
+		const pipe = await getSummarizationPipeline();
+		const summarizedChunks = [];
 
-async function summarizeChunks(chunks) {
-	const pipe = await getSummarizationPipeline();
-	const summarizedChunks = [];
+		for (let chunk of chunks) {
+			let output = await pipe(chunk);
+			summarizedChunks.push(output[0].summary_text);
+		}
 
-	for (let chunk of chunks) {
-		let output = await pipe(chunk);
-		summarizedChunks.push(output[0].summary_text);
+		return summarizedChunks;
 	}
 
-	return summarizedChunks;
-}
-
-module.exports = {
 	async getAll(req, res) {
 		const trails = await LearningTrail.find();
 		return res.json(trails);
-	},
+	}
 
 	async save(req, res) {
 		const pdfParse = require('pdf-parse');
 
-		let validationErrors = validateData(req);
+		let validationErrors = this._validateData(req);
 
 		if (validationErrors.length) {
 			return res.status(400).json({ message: 'Houveram erros de validação', errors: validationErrors });
@@ -89,9 +89,8 @@ module.exports = {
 			return res.status(400).json({ message: 'Houveram erros de validação', errors: [{ error: 'O arquivo informado não possui texto', element: 'file' }] });
 		}
 
-
-		let chunks = splitTextIntoChunks(pdf.text);
-		let summarizedChunks = await summarizeChunks(chunks);
+		let chunks = this._splitTextIntoChunks(pdf.text);
+		let summarizedChunks = await this._summarizeChunks(chunks);
 
 		const newTrail = await LearningTrail.create({
 			title: req.body.title,
@@ -101,7 +100,7 @@ module.exports = {
 		});
 
 		return res.status(201).json({ id: newTrail._id });
-	},
+	}
 
 	async getById(req, res) {
 		const trail = await LearningTrail.findById(req.params.id);
@@ -111,7 +110,7 @@ module.exports = {
 		}
 
 		return res.json(trail);
-	},
+	}
 
 	async delete(req, res) {
 		const trail = await LearningTrail.findByIdAndDelete(req.params.id);
@@ -121,6 +120,7 @@ module.exports = {
 		}
 
 		return res.status(204).send();
-	},
+	}
+}
 
-};
+module.exports = new LearningTrailController();
