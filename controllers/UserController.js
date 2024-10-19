@@ -2,6 +2,10 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
+const passport = require('passport');
+const AuthStrategy = require('../services/AuthStrategy');
+
+AuthStrategy.register();
 
 async function validateUser(body) {
 	let errors = [];
@@ -36,14 +40,13 @@ function generateJwt(id, username) {
 
 module.exports = {
 	async login(req, res) {
-		const { email, password } = req.body;
-		const user = await User.findOne({ email });
+		passport.authenticate('local', (err, user) => {
+			if (err) {
+				return res.status(401).json({ message: 'Houveram erros de validação', errors: [err] });
+			}
 
-		if (!user || !await bcrypt.compare(password, user.password)) {
-			return res.status(400).json([{ field: 'username', message: 'Usuário ou senha inválidos' }]);
-		}
-
-		return res.status(200).json({ user: { username: user.username }, accessToken: generateJwt(user._id, user.username) });
+			return res.status(200).json({ user: { username: user.username }, accessToken: generateJwt(user._id, user.username) });
+		})(req, res);
 	},
 
 	async create(req, res) {

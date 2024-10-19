@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const requireDir = require('require-dir');
 const cors = require('cors');
+const passport = require('passport');
 
 require('dotenv').config();
 
@@ -10,16 +10,15 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+app.use(passport.initialize());
+
 const uri = 'mongodb://127.0.0.1:27017';
 mongoose.connect(uri);
-
-requireDir('./models');
 
 app.use('/api', require('./routes.js'));
 
 const apiPort = 3000;
 const apiServer = app.listen(apiPort, () => console.log(`Listening on port ${apiPort}`));
-
 
 //gracefully shutdown
 process.on('SIGTERM', () => {
