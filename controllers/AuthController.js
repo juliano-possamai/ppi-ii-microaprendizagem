@@ -7,7 +7,7 @@ class AuthController {
 		AuthService.registerStrategies();
 	}
 
-	async passwordLogin(req, res) {
+	passwordLogin = async(req, res) => {
 		passport.authenticate('local', (err, user) => {
 			if (err) {
 				return res.status(401).json({ message: 'Houveram erros de validação', errors: [err] });

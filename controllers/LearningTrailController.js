@@ -2,12 +2,13 @@ const fs = require('fs');
 const LearningTrail = require('../models/LearningTrail');
 
 class LearningTrailController {
-	async getSummarizationPipeline() {
+
+	_getSummarizationPipeline = async() => {
 		const { pipeline } = await import('@xenova/transformers');
 		return await pipeline('summarization', 'Xenova/distilbart-cnn-6-6');
 	}
 
-	_validateData(req) {
+	_validateData = (req) => {
 		let errors = [];
 
 		if (!req.body.title) {
@@ -33,7 +34,7 @@ class LearningTrailController {
 		return errors;
 	}
 
-	_splitTextIntoChunks(text) {
+	_splitTextIntoChunks = (text) => {
 		const phrasesPerChunk = 50;
 		const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
 
@@ -45,8 +46,8 @@ class LearningTrailController {
 		return chunks;
 	}
 
-	async _summarizeChunks(chunks) {
-		const pipe = await getSummarizationPipeline();
+	_summarizeChunks = async(chunks) => {
+		const pipe = await this._getSummarizationPipeline();
 		const summarizedChunks = [];
 
 		for (let chunk of chunks) {
@@ -57,14 +58,13 @@ class LearningTrailController {
 		return summarizedChunks;
 	}
 
-	async getAll(req, res) {
-		const trails = await LearningTrail.find();
+	getAll = async(req, res) => {
+		const trails = await LearningTrail.find({ userId: req.user.id });
 		return res.json(trails);
 	}
 
-	async save(req, res) {
+	save = async(req, res) => {
 		const pdfParse = require('pdf-parse');
-
 		let validationErrors = this._validateData(req);
 
 		if (validationErrors.length) {
@@ -94,6 +94,7 @@ class LearningTrailController {
 
 		const newTrail = await LearningTrail.create({
 			title: req.body.title,
+			userId: req.user.id,
 			sections: summarizedChunks.map((chunk, index) => {
 				return { read: false, content: chunk };
 			})
@@ -102,8 +103,8 @@ class LearningTrailController {
 		return res.status(201).json({ id: newTrail._id });
 	}
 
-	async getById(req, res) {
-		const trail = await LearningTrail.findById(req.params.id);
+	getById = async(req, res) => {
+		const trail = await LearningTrail.findOne({ _id: req.params.id, userId: req.user.id });
 
 		if (!trail) {
 			return res.status(404).json({ message: 'Trilha não encontrada' });
@@ -112,15 +113,30 @@ class LearningTrailController {
 		return res.json(trail);
 	}
 
-	async delete(req, res) {
-		const trail = await LearningTrail.findByIdAndDelete(req.params.id);
+	delete = async(req, res) => {
+		const trail = await LearningTrail.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
 
 		if (!trail) {
-			return res.status(404).send({ message: 'Trilha não encontrado' });
+			return res.status(404).send({ message: 'Trilha não encontrada' });
+		}
+
+		return res.status(204);
+	}
+
+	updateReadStatus = async(req, res) => {
+		const trail = await LearningTrail.findOneAndUpdate(
+			{ _id: req.params.id, userId: req.user.id, sections: { $elemMatch: { _id: req.params.sectionId } } },
+			{ $set: { 'sections.$.read': Boolean(req.body.read) } },
+			{ new: true }
+		);
+
+		if (!trail) {
+			return res.status(404).json({ message: 'Trilha não encontrada' });
 		}
 
 		return res.status(204).send();
 	}
+
 }
 
 module.exports = new LearningTrailController();

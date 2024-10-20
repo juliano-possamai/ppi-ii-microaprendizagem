@@ -5,7 +5,8 @@ const User = require('../models/User');
 const passport = require('passport');
 
 class AuthService {
-	registerStrategies() {
+
+	registerStrategies = () => {
 		passport.use(new LocalStrategy(
 			{
 				usernameField: 'email',
@@ -23,10 +24,11 @@ class AuthService {
 		));
 	}
 
-	generateJwt(id, username) {
+	generateJwt = (id, username) => {
 		//TODO melhoria: adicionar expiração ao token
 		return jwt.sign({ id, username }, process.env.ACCESS_TOKEN_SECRET);
 	}
+
 }
 
 module.exports = new AuthService();

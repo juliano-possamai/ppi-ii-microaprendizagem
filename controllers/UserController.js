@@ -3,7 +3,8 @@ const User = require('../models/User');
 const AuthService = require('../services/AuthService.js');
 
 class UserController {
-	async _validateUser (body) {
+
+	_validateUser = async(body) => {
 		let errors = [];
 
 		if (!body.username) {
@@ -30,7 +31,7 @@ class UserController {
 		return errors;
 	}
 
-	async create(req, res) {
+	create = async(req, res) => {
 		const { username, email, password } = req.body;
 
 		const errors = await this._validateUser(req.body);
@@ -44,6 +45,7 @@ class UserController {
 		const user = await User.create({ username, email, password: hashedPassword });
 		return res.status(201).json({ user: { username: user.username }, accessToken: AuthService.generateJwt(user._id, user.username) });
 	}
+
 }
 
 module.exports = new UserController();
