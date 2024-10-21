@@ -120,7 +120,7 @@ class LearningTrailController {
 			return res.status(404).send({ message: 'Trilha não encontrada' });
 		}
 
-		return res.status(204);
+		return res.status(204).send();
 	}
 
 	updateReadStatus = async(req, res) => {
