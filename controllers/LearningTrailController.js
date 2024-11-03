@@ -1,9 +1,15 @@
 const fs = require('fs');
 const LearningTrail = require('../models/LearningTrail');
+const { ChatOpenAI } = require('@langchain/openai');
+const { PromptTemplate } = require('@langchain/core/prompts');
+const { TokenTextSplitter } = require('langchain/text_splitter');
+const { PDFLoader } = require('@langchain/community/document_loaders/fs/pdf');
+const { z } = require('zod');
+const { StructuredOutputParser } = require('langchain/output_parsers');
 
 class LearningTrailController {
 
-	_getSummarizationPipeline = async() => {
+	_getSummarizationPipeline = async () => {
 		const { pipeline } = await import('@xenova/transformers');
 		return await pipeline('summarization', 'Xenova/distilbart-cnn-6-6');
 	}
@@ -23,87 +29,112 @@ class LearningTrailController {
 			errors.push({ error: 'O arquivo informado deve ser no formato PDF', element: 'file' });
 		}
 
-		// if (!req.body.contentStart) {
-		// 	errors.push({ error: 'Informe a página que marca o início do conteúdo', element: 'contentStart' });
-		// }
+		if (!req.body.pageStart) {
+			errors.push({ error: 'Informe a página que marca o início do conteúdo', element: 'contentStart' });
+		}
 
-		// if (!req.body.contentEnd) {
-		// 	errors.push({ error: 'Informe a página que marca o fim do conteúdo', element: 'contentEnd' });
-		// }
+		if (!req.body.pageEnd) {
+			errors.push({ error: 'Informe a página que marca o fim do conteúdo', element: 'contentEnd' });
+		}
 
 		return errors;
 	}
 
-	_splitTextIntoChunks = (text) => {
-		const phrasesPerChunk = 50;
-		const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+	_summarizeDocuments = async (documents) => {
+		const model = new ChatOpenAI({
+			openAIApiKey: process.env.OPENAI_API_KEY,
+			model: 'gpt-4o-mini',
+			temperature: 0.1
+		});
 
-		const chunks = [];
-		for (let i = 0; i < sentences.length; i += phrasesPerChunk) {
-			chunks.push(sentences.slice(i, i + phrasesPerChunk).join(' ').trim());
+		const outputParser = StructuredOutputParser.fromZodSchema(
+			z.array(z.object({
+				name: z.string().describe("The name of the section"),
+				content: z.string().describe("The content of the section")
+			}))
+		);
+
+		const prompt = PromptTemplate.fromTemplate(`
+			Write a concise summary of the following text delimited by triple backquotes and group then into sections.
+			The summarized content must keep the submitted text language.
+			Formatting instructions: {formatInstructions}
+			Text: \`\`\`{inputText}\`\`\`
+		`);
+
+		let summarizedDocuments = [];
+		for (let document of documents) {
+			const chain = prompt.pipe(model).pipe(outputParser);
+			const response = await chain.invoke({
+				inputText: document.pageContent,
+				formatInstructions: outputParser.getFormatInstructions()
+			});
+
+			summarizedDocuments = summarizedDocuments.concat(response);
 		}
 
-		return chunks;
+		return summarizedDocuments;
 	}
 
-	_summarizeChunks = async(chunks) => {
-		const pipe = await this._getSummarizationPipeline();
-		const summarizedChunks = [];
+	getAll = async (req, res) => {
+		const status = req.query.status;
+		const query = { userId: req.user.id };
 
-		for (let chunk of chunks) {
-			let output = await pipe(chunk);
-			summarizedChunks.push(output[0].summary_text);
+		if (status) {
+			query.status = status;
 		}
 
-		return summarizedChunks;
-	}
-
-	getAll = async(req, res) => {
-		const trails = await LearningTrail.find({ userId: req.user.id });
+		const trails = await LearningTrail.find(query);
 		return res.json(trails);
 	}
 
-	save = async(req, res) => {
-		const pdfParse = require('pdf-parse');
+	save = async (req, res) => {
 		let validationErrors = this._validateData(req);
-
 		if (validationErrors.length) {
 			return res.status(400).json({ message: 'Houveram erros de validação', errors: validationErrors });
 		}
 
-		/*TODO
-		Estratégia para cortar paginas do PDF
-			usar lib-pdf q dá pra obter página a página
-			com essa lib, criar outro arquivo pdf somente com as páginas do intervalo válido
-			ler o arquivo com a lib pdf parse
-		*/
+		const loader = new PDFLoader(req.file.path, {
+			parsedItemSeparator: ''
+		});
 
-		//TODO unificar em uma classe? ler o arquivo somente uma vez ao validar, utilizar o conteúdo lido dps
-		let dataBuffer = fs.readFileSync(req.file.path);
-		let pdf = await pdfParse(dataBuffer);
-		fs.unlink(`${req.file.destination}/${req.file.filename}`, err => { });
+		const documents = await loader.load();
+		const pageStart = req.body.pageStart;
+		const pageEnd = req.body.pageEnd;
 
-		pdf.text = pdf.text.replace(/(\r\n|\n|\r)/gm, ' ').trim();
+		let combinedText = '';
+		documents.slice(pageStart - 1, pageEnd - 1).forEach(doc => {
+			combinedText += `${doc.pageContent}\n`;
+		});
 
-		if (!pdf.text) {
+		fs.unlink(`${req.file.destination}/${req.file.filename}`, err => {});
+
+		if (!combinedText) {
 			return res.status(400).json({ message: 'Houveram erros de validação', errors: [{ error: 'O arquivo informado não possui texto', element: 'file' }] });
 		}
 
-		let chunks = this._splitTextIntoChunks(pdf.text);
-		let summarizedChunks = await this._summarizeChunks(chunks);
+		const splitter = new TokenTextSplitter({
+			modelName: "o200k_base",
+			chunkSize: 256,
+			// chunkSize: 8192,
+			// chunkOverlap: 256
+			chunkOverlap: 24
+		});
+
+		const tokenizedDocuments = await splitter.createDocuments([combinedText]);
+		const summarizedChunks = await this._summarizeDocuments(tokenizedDocuments);
 
 		const newTrail = await LearningTrail.create({
 			title: req.body.title,
 			userId: req.user.id,
-			sections: summarizedChunks.map((chunk, index) => {
-				return { read: false, content: chunk };
+			sections: summarizedChunks.map(section => {
+				return { read: false, content: section.content, name: section.name };
 			})
 		});
 
 		return res.status(201).json({ id: newTrail._id });
 	}
 
-	getById = async(req, res) => {
+	getById = async (req, res) => {
 		const trail = await LearningTrail.findOne({ _id: req.params.id, userId: req.user.id });
 
 		if (!trail) {
@@ -113,7 +144,7 @@ class LearningTrailController {
 		return res.json(trail);
 	}
 
-	delete = async(req, res) => {
+	delete = async (req, res) => {
 		const trail = await LearningTrail.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
 
 		if (!trail) {
@@ -123,7 +154,7 @@ class LearningTrailController {
 		return res.status(204).send();
 	}
 
-	updateReadStatus = async(req, res) => {
+	updateReadStatus = async (req, res) => {
 		const trail = await LearningTrail.findOneAndUpdate(
 			{ _id: req.params.id, userId: req.user.id, sections: { $elemMatch: { _id: req.params.sectionId } } },
 			{ $set: { 'sections.$.read': Boolean(req.body.read) } },
@@ -134,6 +165,28 @@ class LearningTrailController {
 			return res.status(404).json({ message: 'Trilha não encontrada' });
 		}
 
+		return res.status(204).send();
+	}
+
+	updateSections = async (req, res) => {
+		const trail = await LearningTrail.findOne({ _id: req.params.id, userId: req.user.id });
+
+		if (!trail) {
+			return res.status(404).json({ message: 'Trilha não encontrada' });
+		}
+
+		if (!req.body.sections) {
+			return res.status(400).json({ message: 'Houveram erros de validação', errors: [{ error: 'Informe as seções da trilha', element: 'sections' }] });
+		}
+
+		trail.sections = req.body.sections.map(section => ({
+			read: false,
+			content: section
+		}));
+
+		trail.status = 2;
+
+		await trail.save();
 		return res.status(204).send();
 	}
 

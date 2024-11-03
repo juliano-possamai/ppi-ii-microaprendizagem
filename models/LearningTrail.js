@@ -6,6 +6,10 @@ const TrailSection = new Schema({
 		type: Boolean,
 		default: false
 	},
+	name: {
+		type: String,
+		required: true
+	},
 	content: {
 		type: String,
 		required: true
@@ -21,9 +25,14 @@ const LearningTrailSchema = new Schema({
 	sections: [
 		{
 			type: TrailSection,
-			required: true
+			required: false
 		}
 	],
+	status: {
+		type: Number,
+		enum: [1, 2],
+		default: 1
+	},
 	userId: {
 		type: Schema.Types.ObjectId,
 		required: true

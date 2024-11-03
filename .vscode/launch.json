@@ -3,11 +3,10 @@
 	"configurations": [
 		{
 			"type": "node",
-			"request": "launch",
-			"name": "Run test.js",
-			"program": "${workspaceFolder}/test.js",
-			"skipFiles": ["<node_internals>/**"],
-			"console": "integratedTerminal"
+			"request": "attach",
+			"name": "Attach to Nodemon",
+			"processId": "${command:PickProcess}",
+			"restart": true,
 		}
 	]
 }
