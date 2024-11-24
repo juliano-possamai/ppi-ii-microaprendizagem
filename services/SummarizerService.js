@@ -10,8 +10,8 @@ class SummarizerService {
 	constructor(filePath, pageStart, pageEnd) {
 		this.document = [];
 		this.filePath = filePath;
-		this.pageStart = pageStart - 1;
-		this.pageEnd = pageEnd - 1;
+		this.pageStart = parseInt(pageStart);
+		this.pageEnd = parseInt(pageEnd);
 	}
 
 	validate = async() => {
@@ -26,11 +26,11 @@ class SummarizerService {
 			errors.push({ error: 'A página inicial está fora do intervalo do documento', element: 'pageStart' });
 		}
 
-		if (this.pageEnd < 1 || this.pageEnd > document.length) {
+		if (this.pageEnd && this.pageEnd > document.length) {
 			errors.push({ error: 'A página final está fora do intervalo do documento', element: 'pageEnd' });
 		}
 
-		if (this.pageStart > this.pageEnd) {
+		if (this.pageEnd && this.pageStart > this.pageEnd) {
 			errors.push({ error: 'A página inicial não pode ser maior que a página final', element: 'pageStart' });
 		}
 
@@ -101,7 +101,7 @@ class SummarizerService {
 	_getDocumentContent = async() => {
 		let combinedText = '';
 		const document = await this._getDocument();
-		document.slice(this.pageStart, this.pageEnd).forEach(doc => {
+		document.slice(this.pageStart - 1, this.pageEnd ? this.pageEnd - 1 : document.length).forEach(doc => {
 			combinedText += `${doc.pageContent}\n`;
 		});
 
