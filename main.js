@@ -2,11 +2,13 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
+const morgan = require('morgan');
 
 require('dotenv').config();
 
 const app = express();
 
+app.use(morgan('tiny'));
 app.use(express.json());
 app.use(cors());
 
