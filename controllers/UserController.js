@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const AuthService = require('../services/AuthService.js');
+const Validator = require('validator');
 
 class UserController {
 
@@ -9,16 +10,22 @@ class UserController {
 
 		if (!body.username) {
 			errors.push({ field: 'username', error: 'Informe o nome de usuário' });
+		} else if (body.username.length < 3) {
+			errors.push({ field: 'username', error: 'O nome de usuário deve ter no mínimo 3 caracteres' });
 		}
 
 		if (!body.email) {
 			errors.push({ field: 'email', error: 'Informe o email' });
-		} else if (true) {
-			//TODO validar email
+		} else if (!Validator.isEmail(body.email)) {
+			errors.push({ field: 'email', error: 'O email informado é inválido' });
 		}
 
 		if (!body.password) {
 			errors.push({ field: 'password', error: 'Informe a senha' });
+		}
+
+		if (body.password != body.passwordConfirmation) {
+			errors.push({ field: 'passwordConfirmation', error: 'As senhas informadas não conferem' });
 		}
 
 		if (!errors.length) {
