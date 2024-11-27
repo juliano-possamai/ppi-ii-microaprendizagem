@@ -18,20 +18,20 @@ class SummarizerService {
 		const errors = [];
 		const document = await this._getDocument();
 		if (!document.length) {
-			errors.push({ error: 'O arquivo informado não possui texto', element: 'file' });
+			errors.push({ error: 'O arquivo informado não possui texto', field: 'file' });
 			return errors;
 		}
 
 		if (this.pageStart < 1 || this.pageStart > document.length) {
-			errors.push({ error: 'A página inicial está fora do intervalo do documento', element: 'pageStart' });
+			errors.push({ error: 'A página inicial está fora do intervalo do documento', field: 'pageStart' });
 		}
 
 		if (this.pageEnd && this.pageEnd > document.length) {
-			errors.push({ error: 'A página final está fora do intervalo do documento', element: 'pageEnd' });
+			errors.push({ error: 'A página final está fora do intervalo do documento', field: 'pageEnd' });
 		}
 
 		if (this.pageEnd && this.pageStart > this.pageEnd) {
-			errors.push({ error: 'A página inicial não pode ser maior que a página final', element: 'pageStart' });
+			errors.push({ error: 'A página inicial não pode ser maior que a página final', field: 'pageStart' });
 		}
 
 		return errors;

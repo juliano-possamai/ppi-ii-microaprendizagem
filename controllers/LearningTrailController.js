@@ -8,23 +8,23 @@ class LearningTrailController {
 		const errors = [];
 
 		if (!req.body.title) {
-			errors.push({ error: 'Informe o título da trilha', element: 'title' });
+			errors.push({ error: 'Informe o título da trilha', field: 'title' });
 		} else if (req.body.title.length < 3) {
-			errors.push({ error: 'O título deve ter no mínimo 3 caracteres', element: 'title' });
+			errors.push({ error: 'O título deve ter no mínimo 3 caracteres', field: 'title' });
 		}
 
 		if (!req.file) {
-			errors.push({ error: 'Informe o arquivo a ser resumido', element: 'file' });
+			errors.push({ error: 'Informe o arquivo a ser resumido', field: 'file' });
 		} else if (req.file.mimetype != 'application/pdf') {
-			errors.push({ error: 'O arquivo informado deve ser no formato PDF', element: 'file' });
+			errors.push({ error: 'O arquivo informado deve ser no formato PDF', field: 'file' });
 		}
 
 		if (!req.body.pageStart) {
-			errors.push({ error: 'Informe a página que marca o início do conteúdo', element: 'contentStart' });
+			errors.push({ error: 'Informe a página que marca o início do conteúdo', field: 'contentStart' });
 		}
 
 		if (!req.body.pageEnd) {
-			errors.push({ error: 'Informe a página que marca o fim do conteúdo', element: 'contentEnd' });
+			errors.push({ error: 'Informe a página que marca o fim do conteúdo', field: 'contentEnd' });
 		}
 
 		return errors;
@@ -56,7 +56,8 @@ class LearningTrailController {
 		}
 
 		const summarizedSections = await summarizerService.summarize();
-		fs.unlink(`${req.file.destination}/${req.file.filename}`, err => {});
+		//TODO mover unlink para middleware
+		fs.unlink(`${req.file.destination}/${req.file.filename}`, err => { });
 
 		const newTrail = await LearningTrail.create({
 			title: req.body.title,
@@ -111,7 +112,7 @@ class LearningTrailController {
 		}
 
 		if (!req.body.sections) {
-			return res.status(400).json({ message: 'Houveram erros de validação', errors: [{ error: 'Informe as seções da trilha', element: 'sections' }] });
+			return res.status(400).json({ message: 'Houveram erros de validação', errors: [{ error: 'Informe as seções da trilha', field: 'sections' }] });
 		}
 
 		trail.sections = req.body.sections.map(section => ({
