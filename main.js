@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
 const morgan = require('morgan');
+const AuthService = require('./services/AuthService.js');
 
 require('dotenv').config();
 
@@ -12,6 +13,7 @@ app.use(morgan('tiny'));
 app.use(express.json());
 app.use(cors());
 
+AuthService.registerStrategies();
 app.use(passport.initialize());
 
 const uri = 'mongodb://127.0.0.1:27017';
